@@ -1,0 +1,670 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xsl:stylesheet
+    version="1.0"
+    xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+    xmlns:exslcom="http://exslt.org/common"
+    xmlns:exslstr="http://exslt.org/strings"
+    xmlns:exsldyn="http://exslt.org/dynamic"
+    extension-element-prefixes="exslcom exslstr"
+>
+
+
+    <!-- =================================================================================
+    >>>>>>>>>>>>> STRING FUNCTIONS
+    ================================================================================== -->
+
+    <!-- SET CASE - converts string $str to $case, where $cast is 'u' (upper), 'l' (lower) or 'c' (capitalised) -->
+
+    <xsl:template name='str.setCase'>
+        <xsl:param name='str' />
+        <xsl:param name='case' />
+        <xsl:if test='$str and $case'>
+            <xsl:choose>
+                <xsl:when test="$case = 'u'">
+                    <xsl:value-of select="translate($str, $str.lowers, $str.uppers)" />
+                </xsl:when>
+                <xsl:when test="$case = 'l'">
+                    <xsl:value-of select="translate($str, $str.uppers, $str.lowers)" />
+                </xsl:when>
+                <xsl:when test="$case = 'c'">
+                    <xsl:value-of select="translate(substring($str,1,1), $str.lowers, $str.uppers)" />
+                    <xsl:value-of select="translate(substring($str,2), $str.uppers, $str.lowers)" />
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select='$case' />
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- MAKE ALPHA-NUM. - removes non-alpha-numeric chars from string $str -->
+
+    <xsl:template name='str.makeAN'>
+        <xsl:param name='str' />
+        <xsl:if test='$str'>
+            <xsl:value-of select="translate($str, ' !%()[]{}*+-/\~#@£$^', '_')" />
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- REPLACE - because EXSLT's replace func doesn't work in Unify. Horrible, due to limting nature of XSL -->
+    <!-- at least allows specification of several patterns ($repl) / replacements ($with) at once, pipe-delimited -->
+
+    <xsl:template name='str.replace'>
+        <xsl:param name='str' />
+        <xsl:param name='repl' />
+        <xsl:param name='with' />
+        <xsl:variable name='repl_parts' select='exslstr:split($repl, "|")' />
+        <xsl:variable name='with_parts' select='exslstr:split($with, "|")' />
+        <xsl:variable name='sweep_1'>
+            <xsl:choose>
+                <xsl:when test='$repl_parts[1] and count(exslstr:split(concat(" ", $str, " "), $repl_parts[1])) &gt; 1'>
+                    <xsl:for-each select='exslstr:split(concat(" ", $str, " "), $repl_parts[1])'>
+                        <xsl:value-of select='.' />
+                        <xsl:if test='position() != last()'>
+                            <xsl:value-of select='$with_parts[1]' />
+                        </xsl:if>
+                    </xsl:for-each>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select='$str' />
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name='sweep_2'>
+            <xsl:choose>
+                <xsl:when test='$repl_parts[2] and count(exslstr:split(concat(" ", $sweep_1, " "), $repl_parts[2])) &gt; 1'>
+                    <xsl:for-each select='exslstr:split(concat(" ", $sweep_1, " "), $repl_parts[2])'>
+                        <xsl:value-of select='.' />
+                        <xsl:if test='position() != last()'>
+                            <xsl:value-of select='$with_parts[2]' />
+                        </xsl:if>
+                    </xsl:for-each>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select='$sweep_1' />
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name='sweep_3'>
+            <xsl:choose>
+                <xsl:when test='$repl_parts[3] and count(exslstr:split(concat(" ", $sweep_2, " "), $repl_parts[3])) &gt; 1'>
+                    <xsl:for-each select='exslstr:split(concat(" ", $sweep_2, " "), $repl_parts[3])'>
+                        <xsl:value-of select='.' />
+                        <xsl:if test='position() != last()'>
+                            <xsl:value-of select='$with_parts[3]' />
+                        </xsl:if>
+                    </xsl:for-each>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select='$sweep_2' />
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:variable name='sweep_4'>
+            <xsl:choose>
+                <xsl:when test='$repl_parts[4] and count(exslstr:split(concat(" ", $sweep_3, " "), $repl_parts[4])) &gt; 1'>
+                    <xsl:for-each select='exslstr:split(concat(" ", $sweep_3, " "), $repl_parts[4])'>
+                        <xsl:value-of select='.' />
+                        <xsl:if test='position() != last()'>
+                            <xsl:value-of select='$with_parts[4]' />
+                        </xsl:if>
+                    </xsl:for-each>
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select='$sweep_3' />
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:variable>
+        <xsl:value-of select='normalize-space($sweep_4)' />
+    </xsl:template>
+
+
+    <!-- FILE VERSION - removes any reference to version in the passed file path, either in dir (/version3/) or QS (?ITEM_VERSION=3) form -->
+
+    <xsl:template name='str.removeVer'>
+
+        <xsl:param name='path' />
+
+        <xsl:variable name='new_path1'>
+            <xsl:for-each select='exslstr:split($path, "/")'>
+                <xsl:if test='substring(., 1, 7) != "version"'>
+                    <xsl:value-of select='concat("/", .)' />
+                </xsl:if>
+            </xsl:for-each>
+        </xsl:variable>
+
+        <xsl:variable name='qs' select='substring-after($new_path1, "?")' />
+        <xsl:variable name='new_path2'>
+            <xsl:if test='not($qs)'><xsl:value-of select='$new_path1' /></xsl:if><xsl:if test='$qs'><xsl:value-of select='substring-before($new_path1, "?")' />?</xsl:if><xsl:for-each select='exslstr:split($qs, "&amp;")'>
+                <xsl:if test='substring(., 1, 12) != "ITEM_VERSION"'>
+                    <xsl:value-of select='concat("&amp;", .)' />
+                </xsl:if>
+            </xsl:for-each>
+        </xsl:variable>
+
+        <xsl:choose>
+            <xsl:when test='substring($new_path2, 1, 2) = "//"'><xsl:value-of select='substring($new_path2, 2)' /></xsl:when>
+            <xsl:otherwise><xsl:value-of select='$new_path2' /></xsl:otherwise>
+        </xsl:choose>
+
+    </xsl:template>
+
+
+    <!-- LISTIFY - returns $items as a $delimiter-delimited list (default is comma), each encased in $encase (default is ") -->
+
+    <xsl:template name='str.listify'>
+        <xsl:param name='items' />
+        <xsl:param name='delim' select='","' />
+        <xsl:param name='encase' select="'&quot;'" />
+        <xsl:variable name='output-tmp'>
+            <xsl:for-each select='$items'>
+                <xsl:value-of select='concat($encase,.,$encase)' />
+                <xsl:if test='position() != last()'><xsl:value-of select='$delim' /></xsl:if>
+            </xsl:for-each>
+        </xsl:variable>
+        <xsl:value-of select='normalize-space($output-tmp)' />
+    </xsl:template>
+
+
+    <!-- URLIFY - remove non-alphanumeric chars and replace spaces with _ in strings intended for use in URLs -->
+
+    <xsl:template name='str.urlify'>
+        <xsl:param name='str' />
+        <xsl:variable name='str_tmp' select="translate(translate($str, translate($str, concat('_ ',$str.alphaNums), ''), ''), ' ', '_')" />
+        <xsl:call-template name='str.setCase'>
+            <xsl:with-param name='case' select='"l"' />
+            <xsl:with-param name='str'>
+                <xsl:call-template name='str.replace'>
+                    <xsl:with-param name='str' select='$str_tmp' />
+                    <xsl:with-param name='repl' select='"__|_"' />
+                    <xsl:with-param name='with' select='"_|_"' />
+                </xsl:call-template>
+            </xsl:with-param>
+        </xsl:call-template>
+    </xsl:template>
+
+
+    <!-- DOC PATH - (comment to follow) -->
+
+    <xsl:template name='str.docPath'>
+        <xsl:param name='docPath' />
+        <xsl:variable name='docPath_noVer'>
+            <xsl:call-template name='str.removeVer'>
+                <xsl:with-param name='path' select='original-file' />
+            </xsl:call-template>
+        </xsl:variable>
+        <xsl:for-each select="exslstr:split($docPath_noVer, '/')">
+            <xsl:choose>
+                <xsl:when test='position() != last()'><xsl:value-of select='.' />/</xsl:when>
+                <xsl:otherwise>doc.<xsl:value-of select='substring-after(., ".")' /></xsl:otherwise>
+            </xsl:choose>
+        </xsl:for-each>
+    </xsl:template>
+
+
+    <!-- =================================================================================
+    >>>>>>>>>>>>> DATE & TIME
+    ================================================================================== -->
+
+    <!-- CALCULABLE DATE - receives dd.mm.yyyy and returns yyyymmdd (splitting on ., unless $delim passed) so is calculable -->
+
+    <xsl:template name='dat.calculableDate'>
+        <xsl:param name='date' />
+        <xsl:param name='delim' select="'.'" />
+        <xsl:if test='$date'>
+            <xsl:variable name='dateParts' select='exslstr:tokenize($date, $delim)' />
+            <xsl:for-each select='$dateParts'>
+                <xsl:sort select='position()' data-type='number' order='descending' />
+                <xsl:value-of select='.' />
+            </xsl:for-each>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- FORMAT DATE - expects dd.mm.yyyy hh.mm $date (time optional) and returns in UK or US (depending on env) format -->
+
+    <xsl:template name='dat.format'>
+        <xsl:param name='date' />
+        <xsl:if test='$date'>
+            <xsl:param name='d'>
+                <xsl:choose>
+                    <xsl:when test='substring($date,1,1) &gt; 0'><xsl:value-of select='substring($date,1,2)' /></xsl:when>
+                    <xsl:otherwise><xsl:value-of select='substring($date,2,1)' /></xsl:otherwise>
+                </xsl:choose>
+            </xsl:param>
+            <xsl:param name='d_finalNum' select='substring($d,string-length($d))' />
+            <xsl:param name='dSuf'>
+                <xsl:variable name='teen' select="string-length($d) = 2 and substring($date,1,1) = '1'"/>
+                <xsl:choose>
+                    <xsl:when test='not($teen) and $d_finalNum = 1'>st</xsl:when>
+                    <xsl:when test='not($teen) and $d_finalNum = 2'>nd</xsl:when>
+                    <xsl:when test='not($teen) and $d_finalNum = 3'>rd</xsl:when>
+                    <xsl:otherwise>th</xsl:otherwise>
+                </xsl:choose>
+            </xsl:param>
+            <xsl:param name='mo' select='substring($date,4,2)' />
+            <xsl:param name='y' select='substring($date,7,4)' />
+            <xsl:param name='h' select='substring($date,12,2)' />
+            <xsl:param name='mi' select='substring($date,15,2)' />
+            <xsl:choose>
+
+                <!-- US/CA English -->
+                <xsl:when test="$env.locale = 'en_US' or $env.locale = 'en_CA'">
+                    <xsl:value-of select="concat($str.months/month[$mo],' ',$d,', ',$y)" />
+                </xsl:when>
+
+                <!-- Swedish -->
+                <xsl:when test="$env.locale = 'sv_SE'">
+                    <xsl:value-of select="concat($d,' ',$str.months/month[$mo],' ',$y)" />
+                </xsl:when>
+
+                <!-- else assume UK English -->
+                <xsl:otherwise>
+                    <xsl:value-of select="concat($d,$dSuf,' ',$str.months/month[$mo],' ',$y)" />
+                </xsl:otherwise>
+
+            </xsl:choose>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- =================================================================================
+    >>>>>>>>>>>>> ENVIRONMENT
+    ================================================================================== -->
+
+    <!-- GET NAME - outputs English or transalted version of 'name' (or, if $descr, 'description') node within $node nodeset -->
+
+    <xsl:template name='loc.getName'>
+        <xsl:param name='node' />
+        <xsl:param name='descr' />
+        <xsl:param name='origText' />
+        <xsl:if test='$node'>
+            <xsl:choose>
+                <xsl:when test='$descr'>
+                    <xsl:value-of select="($node/description|$node/item-links/item-link[collection-schema[.='Translations'][following-sibling::items/item/categories/category[.= $env.langFriendly]]]/items/item/description)[last()]" />
+                </xsl:when>
+                <xsl:when test='$origText'>
+                    <xsl:value-of select="($node/content/item/original_text|$node/item-links/item-link[collection-schema ='Translations']/items/item[categories/category[.=$env.langFriendly]]/content/item/original_text)" disable-output-escaping="yes" />
+                </xsl:when>
+                <xsl:otherwise>
+                    <xsl:value-of select='$descr' /><xsl:value-of select="($node/name|$node/item-links/item-link[collection-schema[.='Translations'][following-sibling::items/item/categories/category[.= $env.langFriendly]]]/items/item/name)[last()]" />
+                </xsl:otherwise>
+            </xsl:choose>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- =================================================================================
+    >>>>>>>>>>>>> CONTENT & ASSETS
+    ================================================================================== -->
+
+    <!-- EXIST (from module perspective) -->
+
+    <xsl:template name='ass.assetsExist'>
+        <xsl:param name='node' />
+        <xsl:param name='store' />
+        <xsl:if test='$node and $store and $node//item-link/items[preceding-sibling::collection-schema[@id=$store]]/item'>true</xsl:if>
+    </xsl:template>
+
+
+    <!-- ELIGIBILITY (INDIV.) - outputs 'ok' if eligible else, if not, reasons why not, each in [] -->
+
+    <xsl:template name='ass.assetElig'>
+
+        <xsl:param name='asset' />
+        <xsl:param name='noButReally' />
+
+        <xsl:if test="$asset">
+            <xsl:choose>
+                <xsl:when test="$env.service = 'Primary UK' and not($noButReally)">ok</xsl:when>
+                <xsl:when test='not($env.dev) or $noButReally'>
+                    <xsl:variable name='calculableDate'>
+                        <xsl:call-template name='dat.calculableDate'>
+                            <xsl:with-param name='date' select='$asset/metadata/item/expiry_dates' />
+                        </xsl:call-template>
+                    </xsl:variable>
+                    <xsl:variable name='appr' select="$asset/metadata/item/status != 'Approved'" />
+                    <xsl:variable name='serv' select="not($asset/taxonomy//category[@id=$tnm.service]/category[name=$env.service]) and not($asset/taxonomy//category[@id = $render_serviceNodeId])" />
+                    <xsl:variable name='expi' select="normalize-space($calculableDate) and $env.currCalculableDate &gt; $calculableDate" />
+                    <xsl:choose>
+                        <xsl:when test='$appr or $serv or $expi'>
+                            <xsl:if test='$appr'>[appr]</xsl:if>
+                            <xsl:if test='$serv'>[serv]</xsl:if>
+                            <xsl:if test='$expi'>[expi]</xsl:if>
+                        </xsl:when>
+                        <xsl:otherwise>ok</xsl:otherwise>
+                    </xsl:choose>
+                </xsl:when>
+                <xsl:otherwise>ok</xsl:otherwise>
+            </xsl:choose>
+        </xsl:if>
+
+    </xsl:template>
+
+
+    <!-- ELIGIBILITY (INDIV.) - outputs clickable warnings that tell you why an asset is inelligible -->
+
+    <xsl:template name='ass.doIneligHTML'>
+        <xsl:param name='asset' />
+        <xsl:if test="$asset and $env.dev">
+            <xsl:variable name='assetElig'>
+                <xsl:call-template name='ass.assetElig'>
+                    <xsl:with-param name='asset' select='$asset' />
+                    <xsl:with-param name='noButReally' select='"true"' />
+                </xsl:call-template>
+            </xsl:variable>
+            <xsl:if test="$assetElig != 'ok'">
+                <a
+                    class='dev_ineligAsset'
+                    style='background: #d70; border: solid 2px #b50; border-radius: 5px; -webkit-border-radius: 5px; -moz-border-radius: 5px; font-size: 11px; text-decoration: none; padding: 3px; color: #fff; font-weight: bold; line-height: 12px; margin: 0 2px'
+                >
+                    <xsl:variable name='href'>
+                        javascript:alert('Alas! This asset is ineligible in the current environment.\n
+                        <xsl:if test="contains($assetElig, '[appr]')">\n- it is not approved</xsl:if>
+                        <xsl:if test="contains($assetElig, '[serv]')">\n- it is not part of <xsl:value-of select='$env.service' /></xsl:if>
+                        <xsl:if test="contains($assetElig, '[expi]')">\n- it has expired</xsl:if>
+                        \n\nIf you believe this is incorrect, chances are the search results tree is not pulling in metadata and/or nested taxonomy.');
+                    </xsl:variable>
+                    <xsl:attribute name='href'><xsl:value-of select='normalize-space($href)' /></xsl:attribute>
+                    !
+                </a>
+            </xsl:if>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- ELIGIBILITY (FROM MODULE PERSP.) - outputs true if @node nodeset contains any eligible assets of data/filestore $store. Eligibility    defined at http://10.0.0.41/wiki/production/main/pmwiki.php?n=CMS.FilteringContent. If interrogating video pages or photo
+    galleries, criteria extends to checking that they have valid media assets  -->
+
+    <xsl:template name='loc.eligibleAssets'>
+
+        <xsl:param name='node' />
+        <xsl:param name='store' />
+        <xsl:param name='debug' />
+
+        <xsl:if test='$node and $store'>
+
+            <xsl:param name='subStore'>
+                <xsl:choose>
+                    <xsl:when test='$store = 8'>9</xsl:when>
+                    <xsl:when test='$store = 11'>7</xsl:when>
+                </xsl:choose>
+            </xsl:param>
+
+            <xsl:variable name='temp'>
+                <xsl:for-each select='$node//item-link/items[preceding-sibling::collection-schema[@id=$store]]/item'>
+                    <item>
+                        <xsl:attribute name='approved'><xsl:if test="metadata/item/status = 'Approved'">true</xsl:if></xsl:attribute>
+                        <xsl:variable name='calculableDate'>
+                            <xsl:call-template name='dat.calculableDate'>
+                                <xsl:with-param name='date' select='metadata/item/expiry_dates' />
+                            </xsl:call-template>
+                        </xsl:variable>
+                        <xsl:attribute name='inDate'>
+                            <xsl:if test="$env.currCalculableDate &lt; $calculableDate or not(normalize-space($calculableDate))">true</xsl:if>
+                        </xsl:attribute>
+                        <xsl:attribute name='currService'>
+                            <xsl:if test="taxonomy/category/category[name='Service']/category[name=$env.service]">true</xsl:if>
+                        </xsl:attribute>
+                        <xsl:attribute name='eligSubAssets'>
+                            <xsl:choose>
+                                <xsl:when test='$subStore'>
+                                    <xsl:variable name='eligSubAssets'>
+                                        <xsl:call-template name='loc.eligibleAssets'>
+                                            <xsl:with-param name='node' select='.' /><xsl:with-param name='store' select="$subStore" />
+                                        </xsl:call-template>
+                                    </xsl:variable>
+                                    <xsl:if test='normalize-space($eligSubAssets)'>true</xsl:if>
+                                </xsl:when>
+                                <xsl:otherwise>true</xsl:otherwise>
+                            </xsl:choose>
+                        </xsl:attribute>
+                    </item>
+                </xsl:for-each>
+            </xsl:variable>
+
+            <xsl:variable name='assetEligibilities' select='exslcom:node-set($temp)' />
+            <xsl:if test="$assetEligibilities/item[@approved = 'true'][@inDate = 'true'][@currService = 'true'][@eligSubAssets = 'true']">true</xsl:if>
+
+        </xsl:if>
+
+    </xsl:template>
+
+
+    <!-- SHORT NAMES - use if available -->
+
+    <xsl:template name='shortName'>
+        <xsl:param name='sName' />
+        <xsl:choose>
+            <xsl:when test='metadata/item/shortname != ""'>
+                <xsl:value-of select='metadata/item/shortname' />
+            </xsl:when>
+            <xsl:when test='content/item/short_name != ""'>
+                <xsl:value-of select="content/item/short_name" />
+            </xsl:when>
+
+            <xsl:otherwise>
+                <xsl:value-of select='name' />
+            </xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+
+
+    <!-- GRADES - convert grade names to numbers. In case of foundation, return either 0 or 'f', depending on $f_for_0 -->
+
+    <xsl:template name='grade_to_num'>
+        <xsl:param name='grade_name' />
+        <xsl:param name='f_for_0' />
+        <xsl:variable name='grade_name_lower'>
+            <xsl:call-template name='str.setCase'>
+                <xsl:with-param name='str' select='$grade_name' />
+                <xsl:with-param name='case' select='"l"' />
+            </xsl:call-template>
+        </xsl:variable>
+        <xsl:choose>
+            <xsl:when test='substring($grade_name_lower, 1, 2) = "ks"'><xsl:value-of select='translate($grade_name_lower, "ks", "")' /></xsl:when>
+            <xsl:when test='$grade_name_lower = "trollslanda"'>2</xsl:when>
+            <xsl:when test='$grade_name_lower = "bi"'>1</xsl:when>
+            <xsl:when test='$grade_name_lower = "nyckelpiga" or $grade_name_lower = "f"'>
+                <xsl:if test='not($f_for_0)'>0</xsl:if>
+                <xsl:if test='$f_for_0'>f</xsl:if>
+            </xsl:when>
+            <xsl:otherwise><xsl:value-of select='$grade_name' /></xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+
+    <xsl:template name='gradeNo'>
+        <xsl:param name='grade_name' />
+        <xsl:choose>
+            <xsl:when test='$renderLocale="en_GB"'>
+                <xsl:value-of select="translate($grade_name,'KS','')" />
+            </xsl:when>
+            <xsl:when test='$renderLocale="sv_SE"'>
+                <xsl:call-template name='str.setCase'>
+                    <xsl:with-param name='str' select="translate($grade_name,'ä','a')" />
+                    <xsl:with-param name='case' select="'l'" />
+                </xsl:call-template>
+            </xsl:when>
+            <xsl:otherwise><xsl:value-of select='$grade_name' /></xsl:otherwise>
+        </xsl:choose>
+    </xsl:template>
+
+
+    <!-- =================================================================================
+    >>>>>>>>>>>>> MISCELLANEOUS
+    ================================================================================== -->
+
+    <!-- QUICK EDIT - if in debug mode, outputs an 'edit' button next to each asset, linking to front end -->
+
+    <xsl:template name='msc.devEdit'>
+
+        <xsl:param name='node' />
+        <xsl:variable name='cs' select='$node/search-results/items/data-item/collection-schema/@id|$node/collection-schema/@id' />
+
+        <xsl:if test="$env.dev">
+            <xsl:variable name='hrefAdder'>
+                <xsl:choose>
+                    <xsl:when test='$cs = $sto.links'>content/links</xsl:when>
+                    <xsl:when test='$cs = $sto.questions'>content/questions</xsl:when>
+                    <xsl:when test='$cs = $sto.vids'>files/videos</xsl:when>
+                    <xsl:when test='$cs = $sto.vidPage'>content/video_page_(standard)</xsl:when>
+                    <xsl:when test='$cs = $sto.photoGals'>content/photo_gallery</xsl:when>
+                    <xsl:when test='$cs = $sto.imgs'>files/images</xsl:when>
+                    <xsl:when test='$cs = $sto.modules'>content/modules</xsl:when>
+                    <xsl:when test='$cs = $sto.activities'>content/activity</xsl:when>
+                    <xsl:when test='$cs = $sto.articles'>content/article</xsl:when>
+                    <xsl:when test='$cs = $sto.docs'>files/documents</xsl:when>
+                    <xsl:when test='$cs = $sto.textContent'>content/textual_content</xsl:when>
+                    <xsl:when test='$cs = $sto.webPage'>content/web_pages</xsl:when>
+                    <xsl:when test='$cs = $sto.audio'>files/audio</xsl:when>
+                    <xsl:when test='$cs = $sto.learningReview'>content/learning_review</xsl:when>
+                    <xsl:when test='$cs = $sto.FMPActivity'>fmp/activities</xsl:when>
+                    <xsl:when test='$cs = $sto.FMPActScreen'>fmp/activities/edit/interaction_screen</xsl:when>
+                    <xsl:when test='$cs = $sto.FMPActType'>fmp/activity-types</xsl:when>
+                    <xsl:when test='$cs = $sto.FMPActTheme'>fmp/theme</xsl:when>
+                    <xsl:when test='$cs = $sto.FMPActComp'>fmp/amd</xsl:when>
+                    <xsl:when test='$cs = $sto.FMPActCompCSS'>fmp/css</xsl:when>
+                    <xsl:when test='$cs = $sto.wsheets'>content/worksheets</xsl:when>
+                    <xsl:when test='$cs = $sto.collections'>content/page_item</xsl:when>
+                    <xsl:when test='$cs = $sto.section'>cms_tile/section</xsl:when>
+                    <xsl:when test='$cs = $sto.tile'>cms_tile/tile</xsl:when>
+                    <xsl:when test='$cs = $sto.text'>cms_tile/text</xsl:when>
+                    <xsl:when test='$cs = $sto.glossary'>content/glossary</xsl:when>
+                    <xsl:when test='$cs = $sto.swiffy'>files/swiffy</xsl:when>
+                    <xsl:when test='$cs = $sto.flash'>files/flash</xsl:when>
+                    <xsl:otherwise><xsl:value-of select='$cs' /></xsl:otherwise>
+                </xsl:choose>
+            </xsl:variable>
+
+            <!-- custom URL bits -->
+            <xsl:variable name='after_path_bit'>
+                <xsl:if test='$cs != $sto.FMPActScreen'>/edit</xsl:if>
+            </xsl:variable>
+            <xsl:variable name='hash'>
+                <xsl:if test='$cs = $sto.FMPActScreen'>
+                    #tab<xsl:value-of select='count($node/preceding-sibling::item) + 1' />
+                </xsl:if>
+            </xsl:variable>
+
+            <!-- for FMP screens, use parent activity's ID, not own -->
+            <xsl:variable name='ID_to_use'>
+                <xsl:if test='$cs = $sto.FMPActScreen'><xsl:value-of select='$node/../../../../@id' /></xsl:if>
+                <xsl:if test='$cs != $sto.FMPActScreen'><xsl:value-of select='$node/@id|$node/search-results/items/data-item/@id' /></xsl:if>
+            </xsl:variable>
+
+            <!-- output link -->
+            <a
+                class='dev-edit'
+                target='_blank'
+                href='https://cms.espresso.co.uk/{$hrefAdder}{$after_path_bit}/item{$ID_to_use}{$hash}'
+                title='edit "{$node/name}" (ID {$node/@id}, store {$node/collection-schema/@id})'
+                style='text-indent: -9999px;'
+            >!</a>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- READ MORE - if anything's linked, do a 'read more' link. -->
+
+    <xsl:template name='readMore'>
+        <xsl:param name='node' />
+        <xsl:param name='sameLine' />
+        <xsl:param name='justReturnHREF' />
+        <xsl:variable name='link' select='$node//item-link[@id=$rel.textToDocs]//item|$node//item-link[@id=$rel.textToLinks]//item' />
+        <xsl:if test="$link">
+            <xsl:choose>
+                <xsl:when test='not($justReturnHREF)'>
+                    <xsl:variable name='ext' select='substring($link/original-file|$link//url, string-length($link/original-file) - 2, 3)'></xsl:variable>
+                    <xsl:variable name='flag'>
+                        <xsl:if test="$ext = 'pdf' or $ext = 'doc'"> [<xsl:value-of select='$ext' />]</xsl:if>
+                    </xsl:variable>
+                    <xsl:choose>
+                        <xsl:when test='$sameLine'>
+                            ... - <a class='read-more' href='{$link/original-file}'>read more</a><xsl:value-of select='$flag' />
+                        </xsl:when>
+                        <xsl:otherwise>
+                            <p>
+                                Read more: <a class='read-more' href='{$link/original-file|$link//url}'><xsl:value-of select='$link/name' /> </a><xsl:value-of select='$flag' />
+                            </p>
+                        </xsl:otherwise>
+                    </xsl:choose>
+                </xsl:when>
+                <xsl:otherwise><xsl:value-of select='$link/original-file|$link//url' /></xsl:otherwise>
+            </xsl:choose>
+        </xsl:if>
+    </xsl:template>
+
+
+    <!-- BUBBLEBATH (creation suite) - add ID, store ID and name attributes -->
+
+    <xsl:template name='creation_suite_attrs'>
+        <xsl:param name='node' select='.' />
+        <xsl:attribute name='data-id'><xsl:value-of select='$node/@id' /></xsl:attribute>
+        <xsl:attribute name='data-store-id'><xsl:value-of select='$node/collection-schema/@id' /></xsl:attribute>
+        <xsl:attribute name='data-name'><xsl:value-of select='$node/name' /></xsl:attribute>
+    </xsl:template>
+
+
+    <!-- convert video duration to hours, minutes, seconds -->
+
+    <xsl:template name='str.vidDuration'>
+
+        <xsl:param name="vidDuration" />
+
+        <xsl:variable name="hrs">
+                <xsl:value-of select="concat(floor($vidDuration div 3600),' ')"/>
+        </xsl:variable>
+
+        <xsl:variable name="hrS">
+            <xsl:choose>
+                    <xsl:when test="$hrs = 1"> hour</xsl:when>
+                    <xsl:otherwise> hours</xsl:otherwise>
+                </xsl:choose>
+        </xsl:variable>
+
+
+        <xsl:variable name="mins">
+                <xsl:value-of select="concat(floor($vidDuration div 60) mod 60,' ')"/>
+        </xsl:variable>
+
+        <xsl:variable name="minS">
+            <xsl:choose>
+                    <xsl:when test="$mins = 1"> minute</xsl:when>
+                    <xsl:otherwise> minutes</xsl:otherwise>
+                </xsl:choose>
+        </xsl:variable>
+
+        <xsl:variable name="secs">
+            <xsl:value-of select="concat($vidDuration mod 60,' ')"/>
+        </xsl:variable>
+
+        <xsl:variable name="secS">
+            <xsl:choose>
+                    <xsl:when test="$secs = 1"> second</xsl:when>
+                    <xsl:otherwise> seconds</xsl:otherwise>
+                </xsl:choose>
+        </xsl:variable>
+
+
+         <xsl:variable name="vidDurationHrMinSec">
+            <xsl:choose>
+                <xsl:when test="$hrs &gt; 0 ">
+                            <xsl:value-of select="concat($hrs,$hrS,' ',$mins,$minS,' ',$secs,$secS)"/>
+                </xsl:when>
+                <xsl:when test="$mins &gt; 0">
+                            <xsl:value-of select="concat($mins,$minS,' ',$secs,$secS)"/>
+                </xsl:when>
+                <xsl:when test="$secs &gt; 0">
+                            <xsl:value-of select="concat($secs,$secS)"/>
+                        </xsl:when>
+            </xsl:choose>
+        </xsl:variable>
+
+        <xsl:value-of select="$vidDurationHrMinSec"/>
+
+    </xsl:template>
+
+
+</xsl:stylesheet>
