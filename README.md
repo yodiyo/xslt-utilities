@@ -1,5 +1,5 @@
-# XSLT utilities
-** Utilities used within xslt **
+# Utilities used within XSLT
+
 * Convert from lower to upper case and vice versa
 * Remove non-alpha-numeric characters from string
 * Replace string characters
