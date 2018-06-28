@@ -1,5 +1,7 @@
 # Utilities used within XSLT
 
+We created these utility templates to make developing XSLT templates more efficient and DRY
+
 * Convert from lower to upper case and vice versa
 * Remove non-alpha-numeric characters from string
 * Replace string characters
