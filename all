@@ -186,7 +186,7 @@
     </xsl:template>
 
 
-    <!-- DOC PATH - (comment to follow) -->
+    <!-- DOC PATH - create path to document removing version and adding forward slash separators -->
 
     <xsl:template name='str.docPath'>
         <xsl:param name='docPath' />
@@ -344,7 +344,7 @@
     </xsl:template>
 
 
-    <!-- ELIGIBILITY (INDIV.) - outputs clickable warnings that tell you why an asset is inelligible -->
+    <!-- ELIGIBILITY (INDIV.) - outputs clickable warnings that tell you why an asset is ineligible -->
 
     <xsl:template name='ass.doIneligHTML'>
         <xsl:param name='asset' />
@@ -433,7 +433,7 @@
     </xsl:template>
 
 
-    <!-- SHORT NAMES - use if available -->
+    <!-- SHORT NAMES - use short name instead of full name if available -->
 
     <xsl:template name='shortName'>
         <xsl:param name='sName' />
@@ -597,16 +597,6 @@
     </xsl:template>
 
 
-    <!-- BUBBLEBATH (creation suite) - add ID, store ID and name attributes -->
-
-    <xsl:template name='creation_suite_attrs'>
-        <xsl:param name='node' select='.' />
-        <xsl:attribute name='data-id'><xsl:value-of select='$node/@id' /></xsl:attribute>
-        <xsl:attribute name='data-store-id'><xsl:value-of select='$node/collection-schema/@id' /></xsl:attribute>
-        <xsl:attribute name='data-name'><xsl:value-of select='$node/name' /></xsl:attribute>
-    </xsl:template>
-
-
     <!-- convert video duration to hours, minutes, seconds -->
 
     <xsl:template name='str.vidDuration'>
@@ -619,11 +609,10 @@
 
         <xsl:variable name="hrS">
             <xsl:choose>
-                    <xsl:when test="$hrs = 1"> hour</xsl:when>
-                    <xsl:otherwise> hours</xsl:otherwise>
-                </xsl:choose>
+                <xsl:when test="$hrs = 1"> hour</xsl:when>
+                <xsl:otherwise> hours</xsl:otherwise>
+            </xsl:choose>
         </xsl:variable>
-
 
         <xsl:variable name="mins">
                 <xsl:value-of select="concat(floor($vidDuration div 60) mod 60,' ')"/>
@@ -631,9 +620,9 @@
 
         <xsl:variable name="minS">
             <xsl:choose>
-                    <xsl:when test="$mins = 1"> minute</xsl:when>
-                    <xsl:otherwise> minutes</xsl:otherwise>
-                </xsl:choose>
+                <xsl:when test="$mins = 1"> minute</xsl:when>
+                <xsl:otherwise> minutes</xsl:otherwise>
+            </xsl:choose>
         </xsl:variable>
 
         <xsl:variable name="secs">
@@ -642,23 +631,22 @@
 
         <xsl:variable name="secS">
             <xsl:choose>
-                    <xsl:when test="$secs = 1"> second</xsl:when>
-                    <xsl:otherwise> seconds</xsl:otherwise>
-                </xsl:choose>
+                <xsl:when test="$secs = 1"> second</xsl:when>
+                <xsl:otherwise> seconds</xsl:otherwise>
+            </xsl:choose>
         </xsl:variable>
 
-
-         <xsl:variable name="vidDurationHrMinSec">
+        <xsl:variable name="vidDurationHrMinSec">
             <xsl:choose>
                 <xsl:when test="$hrs &gt; 0 ">
-                            <xsl:value-of select="concat($hrs,$hrS,' ',$mins,$minS,' ',$secs,$secS)"/>
+                    <xsl:value-of select="concat($hrs,$hrS,' ',$mins,$minS,' ',$secs,$secS)"/>
                 </xsl:when>
                 <xsl:when test="$mins &gt; 0">
-                            <xsl:value-of select="concat($mins,$minS,' ',$secs,$secS)"/>
+                    <xsl:value-of select="concat($mins,$minS,' ',$secs,$secS)"/>
                 </xsl:when>
                 <xsl:when test="$secs &gt; 0">
-                            <xsl:value-of select="concat($secs,$secS)"/>
-                        </xsl:when>
+                    <xsl:value-of select="concat($secs,$secS)"/>
+                </xsl:when>
             </xsl:choose>
         </xsl:variable>
 
